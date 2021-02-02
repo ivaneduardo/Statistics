@@ -1,0 +1,138 @@
+---
+title: "Understanding alpha and beta"
+author: "Ivan Eduardo Lopez"
+date: "1/26/2021"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+```
+
+This document's goal is to help understanding the concept of error type I and error type II. Using visualization it is easier to get the idea behind a concept that is abstract, and sometimes ignored.
+
+
+## What is alpha? What is beta?
+
+In statistics, we make decisions under uncertainty. For example, when we run hypothesis test for the population mean, we take a sample from a population, we don't know what is the real population mean, but make some assumptions about the mean value, then, the difference between the sample mean and our assumptions is tested.
+
+The conclusion is based in how many standard errors are between parameter and statistic, the larger the difference ( measured in standard errors ) between sample mean and assumed population mean, the lower our uncertainty to conclude "yes, these means are not the same". But of course, the uncertainty never disappears, because that is the main reason to use statistics. In the next interactive graph, you can manipulate the population mean ( population under null hypothesis ), the sample mean, population standard deviation, sample size and alpha. 
+
+Some details must be taken on account. Standard error can be estimated dividing the standard deviation by the square root of the sample size. Basically, standard error is the standard deviation, but, no for the individual values, is the standard deviation for the means of each possible sample that can be taken from this population.
+
+The red area is alpha, or probability of error type I. In other words, is the probability of rejecting the null hypothesis, given that this hypothesis is true. Normally we select this value prior to the study.
+
+The blue area is beta, or probability of error type II. Is the probability of failing to reject the null hypothesis, given that null hypothesis is not true.
+
+Now it is time to play with the graph:
+
+```{r eruptions, echo=FALSE}
+
+beta_alfa_analysist1<-function(alfa,mean_null,d_null,mean2,sample_s){
+  if(mean_null>=mean2){
+    type="L"}
+  else {
+    type="G"}
+  
+  sd_null=d_null/sqrt(sample_s)
+  alfa=ifelse(type=="D",alfa/2,alfa)
+  xmin=40
+  xmax=63
+  topy=dnorm(mean_null,mean_null,sd_null)
+  ymax=1.5*topy
+  x1<-round(seq(from=xmin,to=xmax,by=0.01),2)
+  y1.2 <- dnorm(x1,mean=mean_null,sd=sd_null)  
+  y1.1 <- dnorm(x1,mean=mean2,sd=sd_null)
+  typeII=pnorm(qnorm(ifelse(type=="L",alfa,1-alfa),mean=mean_null,sd=sd_null),mean=mean2,sd=sd_null,lower.tail = ifelse(type=="G",TRUE,FALSE))
+  RReg = round(ifelse(type=="L",qnorm(alfa,mean=mean_null,sd=sd_null),
+                      qnorm(1-alfa,mean=mean_null,sd=sd_null)),2)
+  df_teoricas <- data.frame(x=x1,y1=y1.1,y2=y1.2)
+  azb<-c(x1[x1<RReg],rep(0,times=length(x1[x1>=RReg])))
+  zab<-c(rep(0,times=length(x1[x1<RReg])),x1[x1>=RReg])
+  yalfa<-if(type=="L"){
+    dnorm(azb,mean_null,sd_null)}
+  else{
+    dnorm(zab,mean_null,sd_null)
+  }
+  ybeta<-if(type=="L"){
+    dnorm(zab,mean2,sd_null)}
+  else{
+    dnorm(azb,mean2,sd_null)
+  }
+  gf3 <- ggplot(df_teoricas,aes(x=x1,y=y1.2)) + geom_line(size=1) + 
+    geom_line(aes(x=x1,y=y1.1),size=1) + xlim(xmin,xmax) +
+    geom_area(aes(x=x1,y=yalfa,fill="green"),alpha=0.3) +
+    geom_area(aes(x=x1,y=ybeta,fill="red"),alpha=0.3) +
+    annotate(geom="text",x=(mean_null+mean2)/2,y=1.25*topy,label=paste("Beta:",round(typeII,2)))+
+    ylim(-0.2*ymax,1.5*ymax) + geom_segment(x=mean_null,y=0,xend=mean_null,yend=topy,linetype="dashed") + 
+    geom_segment(x=mean2,y=0,xend=mean2,yend=dnorm(mean2,mean2,sd_null),linetype="dashed") +
+    annotate(geom="text",x=mean_null,y=-.075*ymax,label=paste("H0: Mu = ",mean_null),size=2.5) +
+    annotate(geom="text",x=mean2,y=-.15*ymax,label=paste("Xbar = ",mean2),size=2.5) +
+    labs(title="P(Error type II = P(Fail to Reject Null/Null is False)", x="x",y="Value for PDF normal") +
+    geom_segment(x=RReg,y=0,xend=RReg,yend=max(dnorm(RReg,mean_null,sd_null),dnorm(RReg,mean2,sd_null)),size=1,color="black") +
+    scale_fill_discrete(labels=c("alpha","Beta"))
+
+  
+  return(gf3)
+}
+
+
+
+
+inputPanel(
+  selectInput("mean_null", label = "Mean under Null Hypothesis:",
+              choices = c(50, 51, 52, 53), selected = 51),
+  selectInput("mean2", label = "Sample mean:",
+              choices = c(50,51,52,53),selected =52),
+  selectInput("sd_null", label = "Standard Deviation:",
+              choices = c(10,8,6,5),selected = 8),
+  selectInput("sample_s", label = "Sample size:",
+              choices = c(10,20,30,40), selected = 30),
+  
+  sliderInput("alfa", label = "Alpha:",
+              min = 0.01, max = 0.1, value = 0.05, step = 0.01)
+)
+renderPlot({
+  beta_alfa_analysist1(alfa=as.numeric(input$alfa),mean_null=as.numeric(input$mean_null),d_null=as.numeric(input$sd_null),mean2=as.numeric(input$mean2),sample_s=as.numeric(input$sample_s))
+})
+```
+
+## Alpha, beta and difference between population and sample
+
+Let's try some combinations of inputs to get a good idea of this 
+
+Try using this arranges on the interactive graph:
+
+1 - Mean null=53, Sample mean=52, standard deviation=10, sample size=40, alpha=0.05
+2 - Mean null=53, Sample mean=50, standard deviation=10, sample size=40, alpha=0.05
+
+First note that, in both cases, there is a difference between the sample and population mean ( 52 vs 53 on the first case, and 50 vs 53 on the second ). In the first case, a sample mean of 52 falls within the "not rejecting Ho" region, while on the second one, 50, falls withih the "rejecting Ho" region. In both cases the null hypothesis is false, but the beta value is significantly larger when the sample mean is inside the "not rejecting Ho". 
+
+## Standard deviation, sample size and beta.
+
+Now let's try a second arrange. Select Null Mean = 50, sample mean = 53, alpha =0.05, standard deviation = 10, sample size = 10. The sample mean is within the not rejecting region, the blue area is large, there is a 0.76 probability of concluding "there is not enough evidence to affirm the mean is different from 50", but the real mean is different, is 53.
+
+How can this error decrease? One option is on our hands ( sometimes ), the other one is not under the researcher control.
+
+What we can control is the sample size. If we increase the sample size, standard error decreases, normal curve gets narrower, so the blue area decreases. Lets try the same arrange but now using sample size = 40.
+
+The area for error type reduces, and now beta is 0.40.
+
+The second factor, the one that can not be controlled is the variation. Using the same arrange, now change standard deviation from 10 to 5. As can be seen, curves get narrower, the blue area decreases significantly, and beta decreases to 0.02.
+
+## Relation between beta and alpha.
+
+It is normal to desire the minimum posible error tipe I. It has sense to have a low probability of rejecting the null when the null is true, but decreasing alpha affects beta. 
+
+To observe this, let's set sample mean to 52, mean under the null to 50, standard deviatio to 6 and sample size to 30. Now , starting at alpha = 0.10, try decreasing alpha. You will observe beta increase while alpha decrease, going from 0.29 to 0.69. 
+
+When the conditions to reject the null hypothesis, are to hard to meet, alpha decreases, because the proportion of the population that would meet those conditions decreases. But this means that, some members of the population who are not extreme, but at the same time do not meet the null, will no fall on the rejection region.
+
+
+
+
+
+
+
