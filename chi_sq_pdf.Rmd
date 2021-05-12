@@ -1,0 +1,186 @@
+---
+title: "Understanding Chi square distribution"
+author: "Ivan Eduardo Lopez"
+date: "4/27/2021"
+output: html_document
+---
+
+In statistics, there are distributions we all use, but, at the same time, we don't have a clear idea of what we are doing, or why. Normally we are not very clear if we should trust it, or why we should trust it. This article's goal is getting some intuition on how Chi - square distribution works.
+
+# Definition and Probability Density Function (PDF)
+
+Let's try to define Chi - square using a practical approach. Let's say we have k populations. Each one follows a normal standard distribution, so, mean is 0 and standard deviation is 1. Then we run the following experiment:
+
+* we take a random observation from each population. In total we have k observations. They can be positive or negative numbers.
+* we square the obtained values, now we have k observations, but they are squared, they are all positive.
+* we add the resulting squared values. 
+
+The value obtained from this sum is the chi square value.
+
+PDF for Chi - square is defined as:
+
+$$\large
+f(x,k)=\begin{cases}\Large \frac{x^{\frac{k}{2}-1}{e}^{-\frac{x}{2}}}{2^{\frac{k}{2}}{\Gamma(\frac{k}{2})}}\\0, x\le0\end{cases}
+$$
+
+Where:
+
+* value _k_ is the number of populations sampled.
+* value _x_ is the value of the variable that follows a Chi - square distribution.
+* value for _Gamma_ function is:
+$$\Gamma(\frac{k}{2}) = \sqrt{\pi}\frac{(k-2)!!}{2^{\frac{k-1}{2}}}$$
+
+To calculate probabilities, the integral of the PDF is found:
+
+$$\large
+P(a\le{x}\le{b})=\frac{1}{2^{\frac{k}{2}}{\Gamma(\frac{k}{2})}}\int_{a}^{b} {x^{\frac{k}{2}-1}}{e}^{-\frac{x}{2}} dx$$
+
+
+# Chi - square in R.
+
+In R, we can use dchisq() function to obtain PDF values. If the goal is calculating probabilities under a Chi - square distribution, pchisq() can be used, while in order to obtain a Chi - square value, given a probability, qchisq() is used. In general these functions inputs are:
+
+* Function dchisq() requires _x_ , the value of x to find the PDF value, x is a variable following a Chi - square distribution.
+* Function pchisq() requires _q_ , value of _x_ for which we want to find the probability or area below the curve. If we want area to the left, lower.tail must be be set at TRUE, if FALSE, we would get area to the right.
+* Function qchisq requires _p_ , the area or probability related with the _x_ value. Again, default is lower.tail = TRUE, we need to set it as FALSE if we are using a probability to the raight.
+* Each one of these functions need _df_ , or the degrees of freedom. they are the number of populations sampled minus 1. The must common application is using a table, so df would be the number of cells in the table, minus 1.
+
+
+In order to visually testing the relation between R dchisq() function and the experiment previosly described, we can create a function to sample the normal standard distribution, and compare the density function obtained from the simulated data with the theoretical Chi - square PDF.
+
+```{r}
+library(ggplot2)
+# This function is going to generate n samples size k from a normal standard distribution
+sim_chi <- function(k,n){
+  i = 1
+  val <- c()
+  while (i < n){
+    # k samples are taken, squared and added
+    v = sum(rnorm(k)^2)
+    val <- c(val,v)
+    i = i + 1
+  }
+  return(val)
+}
+# 4000 samples size 6 are taken
+simulated <- sim_chi(6,4000)
+df <- data.frame(simulated)
+# A plot is generated, the red one is the simulation, the blue one is the theoretical
+ggplot(df,aes(x=simulated)) + geom_density(color = "red") + stat_function(fun = dchisq, args = list(6), color = "blue")+labs(y="Chi square PDF value")
+
+
+```
+
+Both curves seem to be very similar. The described experiment fit the Chi - squared PDF. 
+
+Why it can't be negative? Because _x_ is the sum of positives values ( squared values ).
+
+Why it is right skewed? Well, Chi - square it is not always right skewed. When the number of populations is 6, like in this example, the only option to get a Chi - square value greater than, for example, 24, is if we get all six Z values greater than 2, square them to 4, and add them, getting a total around 24. But the event of getting all six values less than -2 or grater than 2 is around 0.05, and 0.05^6 is 0.0000000156, so the area below the curve have to be very small. But if we use a larger number of populations, example 10, to get a Chi - square as large as 24, we have a lot of options, any combination with an average absolute Z value of 1.55 will result in a Chi - square greater or equal 24 ( 1.55^2 is 2.4, and 2.4 times 10 is 24 ). Let's take only two of these combinations:
+
+* All value less than -1.55 or greater than 1.55, with probability 0.12, and calculating 0.12^10 = 0.000000000619.
+* Five Z values less than -2.23 or greater than 2.23 ( 2.23^2 = 5, 5*5 = 25), and the other 5 values between -1 and 1. This probability can be estimated as 5(P(|x|>2.23) + 5(P(-1<x<1)) = 0.1424.
+
+The probability of getting a Chi - square value greater than 24 increases from around 0.0000000156 to more than 0.14 when the number of populations increase from 6 to 10, this is because the curve is shifted to the right while the number of populations increases, so, the PDF will not be always right skewed. The following graph shows this behavior:
+
+```{r}
+ggplot(data.frame(x=c(0,50)),aes(x=x)) + stat_function(fun = dchisq, args=list(6),color="red")+
+  stat_function(fun = dchisq, args=list(10),color="blue")+
+  stat_function(fun = dchisq, args=list(15),color="green")+labs(y="Chi square PDF value")+
+  annotate(geom="text",x=9,y=0.13,label="df = 6") +
+  annotate(geom="text",x=13,y=0.10,label="df = 10") +
+  annotate(geom="text",x=20,y=0.075,label="df = 15")
+  
+  
+```
+
+
+# Chi - square for goodness of fit.
+
+One of the applications of chi - square is for Goodness of Fit. The objective of this application is to determine if observed values from a population fit with a theoretical model. Hypothesis are:
+
+$$\Large
+H_{0}=\chi^{2}=0
+\\\Large
+H_{1}=\chi^{2}\ne0
+$$
+
+The test statistic is:
+
+$$\Large
+\chi^{2}=\Sigma_{i=1}^{k}\frac{(o_{i}-e_{i})^{2}}{e_{i}}
+$$
+For each _k_ cell in the table containing the data, an expected value _e_ is estimated based on the null hypothesis. Then, the difference is calculated between the expected _e_ and the observed _o_ , this difference is squared and expressed as a proportion of the expected value.
+
+But, why are we using Chi - square in this case? This formula does not look like the PDF shown before. Let's run a simulation to check how this statistic behaves, and test it against the theoretical chi square with df = 4:
+
+```{r}
+# Generate a population size 50000, the variable created can get 5 different values, 
+# Each one of these values have the same probability. The expected value for each category
+# is 40 ( 200*0.2 ).
+data <- rep(c(1,2,3,4,5),each = 10000)
+r = 1
+v <- c()
+# 2000 samples size 200 are going to be taken
+while ( r < 2000){
+  # The sample size 200 is taken
+  s_data <- sample(data,200)
+  chi = 0
+  # Number of cases for each value is counted.
+  for ( h in 1:5){
+    # Observed value is the number of observations for each category
+    o = length(s_data[s_data==h])
+    chi_i = ((o-40)^2)/40
+    chi = chi + chi_i
+    chi_i = 0
+  }
+  r = r + 1
+  v <- c(v,chi)
+}
+v_df <- data.frame(v)
+# Plotting the density function for the observed ( simulated ) data ( red curve ) vs the Theoretical 
+# Chi - square PDF for degrees of freedom 5 - 1 = 4
+ggplot(v_df,aes(x=v)) + geom_density(color = "red") + 
+stat_function(fun=dchisq,args=list(4),color = "purple") + labs(y="Chi square PDF value")
+
+
+```
+
+Basically, we ran 2000 times the experiment of taking a random sample, size 200, from a uniform distributed population size 50000. For each experiment, Chi - square statistic was calculated and the density function plotted, then, Chi - square PDF with 5 - 1 = 4 degrees of freedom was represented on the same graphs. Both curves fit very well.
+
+From this graph we can conclude that, the test statistic for the Goodness of Fit test, follows a Chi - square distribution with degrees of freedom k - 1.
+
+How we make a decision? Using the p value method. If we observe a result that is not common, the null hypothesis is rejected. 
+
+But, what is " not common "? Well, it depends on the case, the more popular approach is to define alpha first, then, if p value is less than alpha, reject the null hypothesis. We reject the null hypothesis in cases like these, because p value is the probability associated with values more extreme than the observed test statistic, given that the null hypothesis is true. A very small p value means that observed test statistic is very rare and would be safe to conclude the null hypothesis is not true.
+
+The next code chunk shows a graphical representation of p value for a Chi - square distribution with 4 degrees of freedom, and for an observed test statistic of 15. It is included a simple estimation of the probability 
+
+```{r}
+# Area below the curve approximation using 200 rectangles width = 0.015.
+l = 0
+w = 3/200
+s = 0
+while (l < 15){
+  a = w*(dchisq(l,df=4))
+  s = s + a
+  l = l + w
+}
+
+paste("P value approximation using 200 rectangles ( width = 0.015 ) is",round(1-s,4),".")
+
+# P value approximation using R function pchisq().
+paste("P value approximation using function pchisq(q = 15,df = 4, lower.tail = FALSE) is ",round(pchisq(q=15,df=4,lower.tail = FALSE),4),".")
+
+# Graphical representation of p value.
+x <- seq(from = 0, to = 25, by = 0.01)
+df<-data.frame(x)
+ggplot(df,aes(x=x)) + stat_function(fun = dchisq,args = list(8))+stat_function(fun = dchisq,args = list(8),geom="area",fill="pink",xlim=c(15,25)) + labs(y="Chi square PDF value") + annotate(geom = "text", x=17, y=0.007, label = "p value") + stat_function(fun = dchisq,args = list(5))+stat_function(fun = dchisq,args = list(5),geom="area",fill="red",xlim=c(15,25))
+```
+
+For this particular example, conclusion could be written: " the probability of observing a Chi - square test statistic greater or equal to 15, under the assumption that null hypothesis is true ( Null: The distribution is uniform, with 5 possible results, each one with a 0.2 probability ), is 0.0047, less than alpha ( 0.05 ), this result is expected to happen around 4 or 5 times each 1000 samples, so it is rare. Then, it is safe to conclude the distribution is not uniform ".
+
+Adding degrees of fredom would shift the curve to the right, as explained earlier in this document, and would increase the probability of gettin a chi - square test statistic as high as 15 ( for this example ), because, using the definition of this distribution, we would be taking extra samples from the standard normal distribution. In this case, we can compare p  value for degrees of freedom 5 ( red area ) and 8 ( pink area ), both represented on the graph.
+
+
+
+
